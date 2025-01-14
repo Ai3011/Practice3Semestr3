@@ -1,0 +1,36 @@
+services:
+  api:
+    build:
+      context: ./API
+    volumes:
+      - ./API/config.json:/app/config.json
+    depends_on:
+      - db
+    restart: always
+    deploy:
+      replicas: 4
+      restart_policy:
+        condition: on-failure
+      update_config:
+        parallelism: 2
+        delay: 10s
+
+  db:
+    build:
+      context: ./Db
+    ports:
+      - "7432:7432"
+    volumes:
+      - ./Db/exchange:/app/exchange
+      - ./Db/schema.json:/app/schema.json
+    restart: always    
+
+  nginx:
+    image: nginx:latest
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - api
+    restart: always

@@ -1,0 +1,23 @@
+services:
+  api:
+    build:
+      context: ./API
+    ports:
+      - "8080:8080"                  
+    volumes:
+      - ./API/config.json:/app/config.json
+    stdin_open: true
+    tty: true                         
+    depends_on:
+      - db                           
+    restart: always
+
+  db:
+    build:
+      context: ./Db    
+    ports:
+      - "7432:7432"                     
+    volumes:
+      - ./Db/exchange:/app/exchange
+      - ./Db/schema.json:/app/schema.json
+    restart: always                  
