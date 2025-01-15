@@ -84,7 +84,7 @@ void handleClient(int clientSocket, SchemaInfo& schemaData) {
     query.erase(query.find_last_not_of("\r\n") + 1); // Удаление символов конца строки
     parsingQuery(query, schemaData, clientSocket);
     close(clientSocket);
-    cout << "Connection " << clientSocket << " closed" << endl;
+   // cout << "Connection " << clientSocket << " closed" << endl;
 }
 
 int main() {
@@ -137,8 +137,6 @@ int main() {
             throw runtime_error("Ошибка при ожидании подключения клиента");
             continue;
         }
-
-        cout << "Client " << clientSocket << " connected" << endl;
 
         // Запуск нового потока для обработки
         clientThreads.emplace_back(thread(handleClient, clientSocket, std::ref(schemaData)));

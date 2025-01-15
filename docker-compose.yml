@@ -1,23 +1,36 @@
 services:
-  api:
+  api:  # Сервис для API приложения
     build:
-      context: ./API
-    ports:
-      - "8080:8080"                  
+      context: ./API  # Указывает папку, содержащую Dockerfile и код для API
     volumes:
-      - ./API/config.json:/app/config.json
-    stdin_open: true
-    tty: true                         
+      - ./API/config.json:/app/config.json  # Монтирует файл конфигурации в контейнер, чтобы приложение могло его использовать
     depends_on:
-      - db                           
-    restart: always
+      - db  # Указывает, что сервис API зависит от базы данных, она должна быть запущена до API
+    restart: always  # Автоматически перезапускает контейнер в случае сбоя или остановки
+    deploy:  # Конфигурация для развертывания в Docker Swarm
+      replicas: 4  # Количество реплик (экземпляров) контейнера API
+      restart_policy:  # Политика перезапуска
+        condition: on-failure  # Перезапускать контейнер, если он завершится с ошибкой
+      update_config:  # Конфигурация обновлений для Docker Swarm
+        parallelism: 2  # Количество контейнеров, которые будут обновляться параллельно
+        delay: 10s  # Задержка перед обновлением следующей группы контейнеров
 
-  db:
+  db:  # Сервис для базы данных
     build:
-      context: ./Db    
+      context: ./Db  # Указывает папку, содержащую Dockerfile и код для базы данных
     ports:
-      - "7432:7432"                     
+      - "7432:7432"  # Пробрасывает порт 7432 из контейнера на хост, чтобы обеспечить доступ к базе данных
     volumes:
-      - ./Db/exchange:/app/exchange
-      - ./Db/schema.json:/app/schema.json
-    restart: always                  
+      - ./Db/exchange:/app/exchange  # Монтирует директорию с данными для базы данных
+      - ./Db/schema.json:/app/schema.json  # Монтирует файл схемы базы данных
+    restart: always  # Автоматически перезапускает контейнер в случае сбоя или остановки
+
+  nginx:  # Сервис для веб-сервера Nginx
+    image: nginx:latest  # Используется официальный образ Nginx
+    ports:
+      - "80:80"  # Пробрасывает порт 80 на хост, чтобы обеспечить доступ через веб-браузер
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf  # Монтирует конфигурационный файл Nginx для настройки
+    depends_on:
+      - api  # Указывает, что Nginx зависит от API, и оно должно быть запущено до Nginx
+    restart: always  # Автоматически перезапускает контейнер в случае сбоя или остановки

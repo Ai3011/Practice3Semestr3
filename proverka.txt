@@ -1,0 +1,48 @@
+1.Созданние пользователя 
+curl -X POST http://localhost:8080/user \
+  -H "Content-Type: application/json" \
+  -d '{"username": "new_user_name"}'
+
+
+2-2a3364c9-febb-433f-9b9f-d8d29914b215"
+
+
+
+2.Создание ордера
+ curl -X POST http://localhost:8080/order \
+  -H "Content-Type: application/json" \
+  -H "X-USER-KEY: 96e603d8-e0e9-4d32-86be-7879d198f9d2 " \
+  -d '{
+    "pair_id": 1,
+    "quantity": 10.0,
+    "price": 5,
+    "type": "sell"
+  }' 
+
+3.Получение списка ордеров
+
+curl -X GET "http://localhost:8080/order" \
+-H "X-USER-KEY: 96e603d8-e0e9-4d32-86be-7879d198f9d2"
+
+4.Удаление ордера
+
+curl -X DELETE "http://localhost:8080/order" \
+-H "Content-Type: application/json" \
+-H "X-USER-KEY: 96e603d8-e0e9-4d32-86be-7879d198f9d2" \
+-d '{"order_id": 3}'
+
+
+5.Просмотр лотов
+
+curl -X GET "http://localhost:8080/lot" \
+-H "X-USER-KEY: 96e603d8-e0e9-4d32-86be-7879d198f9d2"
+
+
+6.Просмотр пар
+curl -X GET "http://localhost:8080/pair" \
+-H "X-USER-KEY: 96e603d8-e0e9-4d32-86be-7879d198f9d2"
+
+
+7.Активы пользователя
+curl -X GET "http://localhost:8080/balance" \
+-H "X-USER-KEY: 96e603d8-e0e9-4d32-86be-7879d198f9d2"
