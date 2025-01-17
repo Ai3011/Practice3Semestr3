@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math"
 	"net/http"
 	"time"
 )
@@ -83,27 +82,25 @@ func getRequest(endpoint string, apiKey string) ([]byte, error) {
 }
 
 func main() {
-	// Создаем пользователя. Отправляем POST-запрос на создание нового пользователя с именем "user11".
+	// Создаем пользователя и получаем API ключ.
 	user := struct {
 		Username string `json:"username"`
-	}{"pribil_bot2"}
+	}{"pribil_bot00"}
 	resp, _ := postRequest("/user", user, "")
 	var userResponse UserResponse
-	// Получаем API ключ пользователя из ответа.
 	json.Unmarshal(resp, &userResponse)
 	apiKey := userResponse.Key
 
-	// Получаем доступные торговые пары через GET-запрос.
+	// Получаем доступные торговые пары и список лотов.
 	pairsResp, _ := getRequest("/pair", apiKey)
 	var pairs []Pair
 	json.Unmarshal(pairsResp, &pairs)
 
-	// Получаем список лотов через GET-запрос.
 	lotsResp, _ := getRequest("/lot", apiKey)
 	var lots []Lot
 	json.Unmarshal(lotsResp, &lots)
 
-	// Находим ID лота "RUB", который будет использоваться для торгов.
+	// Ищем лот RUB.
 	var rubLotID int
 	for _, lot := range lots {
 		if lot.Name == "RUB" {
@@ -112,7 +109,7 @@ func main() {
 		}
 	}
 
-	// Фильтруем только те торговые пары, которые используют RUB.
+	// Фильтруем пары с RUB.
 	var rubPairs []Pair
 	for _, pair := range pairs {
 		if pair.SaleLotID == rubLotID || pair.BuyLotID == rubLotID {
@@ -120,123 +117,91 @@ func main() {
 		}
 	}
 
-	// Бесконечный цикл для мониторинга и принятия решений на основе ордеров
+	// Бесконечный цикл для мониторинга.
 	for {
-		// Получаем текущий баланс пользователя через GET-запрос.
+		// Получаем баланс пользователя.
 		balanceResp, _ := getRequest("/balance", apiKey)
 		var balances []Balance
 		json.Unmarshal(balanceResp, &balances)
 
-		// Строим карту баланса по LotID.
 		balanceMap := make(map[int]float64)
 		for _, balance := range balances {
 			balanceMap[balance.LotID] = balance.Quantity
 		}
-		// Выводим баланс для лота с ID 1 (RUB).
-		fmt.Println("баланс:", balanceMap[1])
 
-		// Получаем список ордеров через GET-запрос.
+		// Получаем список ордеров.
 		ordersResp, _ := getRequest("/order", apiKey)
 		var orders []Order
 		json.Unmarshal(ordersResp, &orders)
 
-		// Инициализируем переменные для поиска минимальной цены продажи и максимальной цены покупки.
-		var minSell float64 = 100000000
-		var pairIDSell int
-		var quantitySell float64
-		var maxBuy float64 = -100000000
-		var pairIDBuy int
-		var quantityBuy float64
-		var averagePrice float64
-		var check int = 0
-
-		// Проходим по всем ордерам, чтобы найти наименьшую цену на продажу и наибольшую цену на покупку.
+		// Ищем минимальную цену продажи и максимальную цену покупки.
+		var minSellOrder, maxBuyOrder *Order
 		for _, order := range orders {
-			// Проверяем, относится ли ордер к парам, в которых участвует RUB.
 			for _, pair := range rubPairs {
 				if order.PairID == pair.PairID {
-					if order.Type == "sell" {
-						// Если ордер на продажу, ищем минимальную цену продажи.
-						if order.Price < minSell {
-							minSell = order.Price
-							pairIDSell = order.PairID
-							quantitySell = order.Quantity
-						}
-					} else if order.Type == "buy" {
-						// Если ордер на покупку, ищем максимальную цену покупки.
-						if order.Price > maxBuy {
-							maxBuy = order.Price
-							pairIDBuy = order.PairID
-							quantityBuy = order.Quantity
-						}
+					if order.Type == "sell" && (minSellOrder == nil || order.Price < minSellOrder.Price) {
+						minSellOrder = &order
+					} else if order.Type == "buy" && (maxBuyOrder == nil || order.Price > maxBuyOrder.Price) {
+						maxBuyOrder = &order
 					}
-					// Считаем среднюю цену.
-					averagePrice += order.Price
-					check++
-					break
 				}
 			}
 		}
 
-		// Если были найдены ордера, начинаем принимать решение.
-		if check != 0 {
-			// Вычисляем среднюю цену.
-			averagePrice = averagePrice / float64(check)
-
-			// Определяем, какой ордер выгоднее разместить: на покупку или на продажу.
-			var order OrderRequest
-			if math.Abs(averagePrice-minSell) > math.Abs(averagePrice-maxBuy) && minSell != 100000000 {
-				// Если выгоднее купить, выставляем ордер на покупку.
-				order = OrderRequest{
-					PairID:   pairIDSell,
-					Quantity: quantitySell,
-					Price:    minSell,
-					Type:     "buy",
-				}
+		// Размещаем ордер на покупку или продажу.
+		if minSellOrder != nil && maxBuyOrder != nil {
+			// Если есть и покупка, и продажа, выбираем более выгодный ордер.
+			if minSellOrder.Price < maxBuyOrder.Price {
+				placeOrder(minSellOrder, "buy", balanceMap, pairs, apiKey)
 			} else {
-				// Если выгоднее продать, выставляем ордер на продажу.
-				order = OrderRequest{
-					PairID:   pairIDBuy,
-					Quantity: quantityBuy,
-					Price:    maxBuy,
-					Type:     "sell",
-				}
+				placeOrder(maxBuyOrder, "sell", balanceMap, pairs, apiKey)
 			}
-
-			// Проверка баланса перед размещением ордера.
-			pair := getPairByID(pairs, order.PairID)
-			if pair != nil {
-				saleLotBalance := balanceMap[pair.SaleLotID]
-				buyLotBalance := balanceMap[pair.BuyLotID]
-
-				// Если ордер на покупку, проверяем, достаточно ли средств для покупки.
-				if order.Type == "buy" && saleLotBalance >= order.Price*order.Quantity {
-					_, err := postRequest("/order", order, apiKey)
-					if err == nil {
-						// Если ордер успешно выставлен, уменьшаем баланс продажи.
-						fmt.Printf("Выставлен лот: %v\n", order)
-						balanceMap[pair.SaleLotID] -= order.Price * order.Quantity
-					}
-				} else if order.Type == "sell" && buyLotBalance >= order.Quantity {
-					// Если ордер на продажу, проверяем, достаточно ли товара для продажи.
-					_, err := postRequest("/order", order, apiKey)
-					if err == nil {
-						// Если ордер успешно выставлен, уменьшаем баланс покупки.
-						fmt.Printf("Выставлен лот: %v\n", order)
-						balanceMap[pair.BuyLotID] -= order.Quantity
-					}
-				} else {
-					// Если средств или товара недостаточно, выводим сообщение об ошибке.
-					fmt.Println("Недостаточно средств для совершения операции")
-				}
-			}
+		} else if minSellOrder != nil {
+			placeOrder(minSellOrder, "buy", balanceMap, pairs, apiKey)
+		} else if maxBuyOrder != nil {
+			placeOrder(maxBuyOrder, "sell", balanceMap, pairs, apiKey)
 		} else {
-			// Если ордеров на покупку или продажу нет, выводим сообщение.
-			fmt.Println("Нет ордеров на продажу или покупку")
+			fmt.Println("Нет подходящих ордеров для торговли.")
 		}
 
-		// Задержка между итерациями цикла (5 секунд).
+		// Задержка между итерациями.
 		time.Sleep(5 * time.Second)
+	}
+}
+
+// Функция для размещения ордера.
+func placeOrder(order *Order, orderType string, balanceMap map[int]float64, pairs []Pair, apiKey string) {
+	pair := getPairByID(pairs, order.PairID)
+	if pair == nil {
+		return
+	}
+
+	if orderType == "buy" {
+		if balanceMap[pair.SaleLotID] >= order.Price*order.Quantity {
+			newOrder := OrderRequest{
+				PairID:   order.PairID,
+				Quantity: order.Quantity,
+				Price:    order.Price,
+				Type:     "buy",
+			}
+			postRequest("/order", newOrder, apiKey)
+			fmt.Printf("Выставлен ордер на покупку: %+v\n", newOrder)
+		} else {
+			fmt.Println("Недостаточно средств для покупки.")
+		}
+	} else if orderType == "sell" {
+		if balanceMap[pair.BuyLotID] >= order.Quantity {
+			newOrder := OrderRequest{
+				PairID:   order.PairID,
+				Quantity: order.Quantity,
+				Price:    order.Price,
+				Type:     "sell",
+			}
+			postRequest("/order", newOrder, apiKey)
+			fmt.Printf("Выставлен ордер на продажу: %+v\n", newOrder)
+		} else {
+			fmt.Println("Недостаточно средств для продажи.")
+		}
 	}
 }
 

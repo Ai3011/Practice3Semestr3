@@ -1,5 +1,5 @@
 1.Созданние пользователя 
-curl -X POST http://localhost:8080/user \
+curl -X POST http://localhost:80/user \
   -H "Content-Type: application/json" \
   -d '{"username": "new_user_name"}'
 
@@ -9,7 +9,7 @@ curl -X POST http://localhost:8080/user \
 
 
 2.Создание ордера
- curl -X POST http://localhost:8080/order \
+ curl -X POST http://localhost:80/order \
   -H "Content-Type: application/json" \
   -H "X-USER-KEY: 96e603d8-e0e9-4d32-86be-7879d198f9d2 " \
   -d '{
